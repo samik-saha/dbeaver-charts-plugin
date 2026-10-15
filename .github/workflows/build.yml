@@ -1,0 +1,102 @@
+name: Build p2 update site
+
+# Runs when changes land on the default branch (push covers merges),
+# plus manually from the Actions tab. Pushing a version tag (v*) also
+# publishes the update-site zip as a GitHub Release asset.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DBEAVER_VERSION: "26.2.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download DBeaver
+        run: |
+          curl -sSL -o /tmp/dbeaver.tar.gz "https://github.com/dbeaver/dbeaver/releases/download/${DBEAVER_VERSION}/dbeaver-ce-${DBEAVER_VERSION}-linux-x86_64.tar.gz"
+          mkdir -p /tmp/dbeaver-home
+          tar -xzf /tmp/dbeaver.tar.gz -C /tmp/dbeaver-home
+          DBEAVER_DIR="$(dirname "$(find /tmp/dbeaver-home -maxdepth 3 -type d -name plugins | head -n 1)")"
+          echo "DBEAVER_HOME=${DBEAVER_DIR}" >> "${GITHUB_ENV}"
+          ls "${DBEAVER_DIR}/plugins" | head -n 5
+
+      - name: Build plug-in and p2 update site
+        # Compiles against the downloaded DBeaver bundles, runs the chart
+        # checks, then publishes build/update-site via scripts/make-update-site.py.
+        run: |
+          python3 scripts/build.py --dbeaver "${DBEAVER_HOME}"
+          python3 scripts/make-update-site.py --dbeaver "${DBEAVER_HOME}"
+
+      - name: Verify artifact zip is a loadable p2 repository
+        # Zip the site exactly as upload-artifact will (site files at the
+        # zip root) and ask p2 to list it; fails on "No repository found".
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile
+          site = pathlib.Path("build/update-site")
+          with zipfile.ZipFile("/tmp/artifact-check.zip", "w", zipfile.ZIP_DEFLATED) as z:
+              for f in sorted(site.rglob("*")):
+                  if f.is_file():
+                      z.write(f, f.relative_to(site))
+          PY
+          LAUNCHER="$(ls "${DBEAVER_HOME}/plugins/org.eclipse.equinox.launcher_"*.jar)"
+          java -jar "${LAUNCHER}" -nosplash \
+            -configuration /tmp/p2-check-cfg -data /tmp/p2-check-data \
+            -application org.eclipse.equinox.p2.director \
+            -repository "jar:file:/tmp/artifact-check.zip!/" -list | tee /tmp/p2-list.txt
+          grep -q "dev.dbeaver.charts.feature.feature.group" /tmp/p2-list.txt
+
+      # Upload only the site directory: upload-artifact strips the common
+      # root (build/update-site), so the downloaded artifact zip has
+      # content.jar/artifacts.jar at its root and can be added directly in
+      # Help > Install New Software > Add > Archive. Also uploading the
+      # .zip from make-update-site.py would nest the repository one level
+      # deep, and p2 fails with "No repository found at jar:...".
+      - name: Upload update site
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbeaver-charts-update-site
+          if-no-files-found: error
+          path: build/update-site/**
+
+      # Release assets are served as-is (not re-zipped like artifacts), so
+      # users can add this zip directly via Install New Software > Archive.
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(sed -n 's/^Bundle-Version: //p' plugins/dev.dbeaver.charts/META-INF/MANIFEST.MF | tr -d '\r')"
+          if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match plugin version v${VERSION}." >&2
+            exit 1
+          fi
+          ASSET="build/dbeaver-charts-${VERSION}-update-site.zip"
+          NOTES="Download \`${ASSET##*/}\`, then in DBeaver: Help > Install New Software > Add > Archive, select the zip, and install DBeaver Charts."
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${ASSET}" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "${ASSET}" \
+              --title "DBeaver Charts ${GITHUB_REF_NAME}" --notes "${NOTES}"
+          fi

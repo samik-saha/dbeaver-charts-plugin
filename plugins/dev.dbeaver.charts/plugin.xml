@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+    <extension point="org.jkiss.dbeaver.resultset.panel">
+        <!-- Retain the original ID so existing panel visibility preferences still work. -->
+        <panel
+            id="dev.dbeaver.charts.line"
+            label="Charts"
+            description="Line, column, and bar charts with aggregation and dimension grouping"
+            icon="icons/charts.png"
+            default="false"
+            class="dev.dbeaver.charts.ChartsPanel">
+            <supports type="columns"/>
+        </panel>
+    </extension>
+</plugin>

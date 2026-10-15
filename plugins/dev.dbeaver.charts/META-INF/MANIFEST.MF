@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DBeaver Charts
+Bundle-SymbolicName: dev.dbeaver.charts;singleton:=true
+Bundle-Version: 0.5.1
+Bundle-Vendor: DBeaver Charts contributors
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Require-Bundle: org.eclipse.swt,
+ org.eclipse.jface,
+ org.jkiss.dbeaver.model,
+ org.jkiss.dbeaver.ui,
+ org.jkiss.dbeaver.ui.editors.data
+Bundle-ActivationPolicy: lazy

@@ -1,0 +1,17 @@
+.DS_Store
+build/
+**/bin/
+**/target/
+.idea/
+.vscode/
+*.iml
+.settings/
+.metadata/
+__pycache__/
+.env
+.env.*
+!.env.example
+*.log
+*.db
+*.sqlite
+*.sqlite3
