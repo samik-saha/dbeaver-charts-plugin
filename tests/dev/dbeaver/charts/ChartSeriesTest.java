@@ -61,6 +61,21 @@ public final class ChartSeriesTest {
         isoDates.add("2026-09-15", 2);
         check(isoDates.build(10).values()[0] == 2 && isoDates.build(10).chronological(),
             "ISO date strings");
+        var instantText = new ChartSeries.Builder(ChartSeries.Aggregation.SUM);
+        instantText.add("2026-09-16T12:34:56Z", 1);
+        instantText.add("2026-09-15T12:34:56Z", 2);
+        check(instantText.build(10).values()[0] == 2 && instantText.build(10).chronological(),
+            "ISO instant strings sort chronologically");
+        var offsetText = new ChartSeries.Builder(ChartSeries.Aggregation.SUM);
+        offsetText.add("2026-09-16T12:34:56+02:00", 1);
+        offsetText.add("2026-09-15T12:34:56+02:00", 2);
+        check(offsetText.build(10).values()[0] == 2 && offsetText.build(10).chronological(),
+            "offset date-time strings sort chronologically");
+        var slashDates = new ChartSeries.Builder(ChartSeries.Aggregation.SUM);
+        slashDates.add("2026/09/16", 3);
+        slashDates.add("2026/09/15", 2);
+        check(slashDates.build(10).values()[0] == 2 && slashDates.build(10).chronological(),
+            "slash date strings sort chronologically");
         var instant = new ChartSeries.Builder(ChartSeries.Aggregation.SUM);
         instant.add(Instant.parse("2026-09-16T12:34:56Z"), 1);
         check(instant.build(1).details()[0].contains("UTC"), "instant timezone is explicit");
@@ -75,7 +90,7 @@ public final class ChartSeriesTest {
         nullDate.add(LocalDate.of(2026, 9, 16), 1);
         check(nullDate.build(10).chronological() && nullDate.build(10).values()[1] == 9,
             "null X follows sorted dates");
-        System.out.println("ChartSeries: 17 checks passed");
+        System.out.println("ChartSeries: 20 checks passed");
     }
 
     private static void check(boolean condition, String message) {

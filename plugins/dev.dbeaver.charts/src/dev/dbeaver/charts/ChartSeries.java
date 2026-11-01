@@ -297,15 +297,40 @@ public final class ChartSeries {
         return new X(groupKey(value), date, detail);
     }
 
+    private static final DateTimeFormatter SLASH_DAY = DateTimeFormatter.ofPattern("uuuu/MM/dd");
+
     private static LocalDateTime parseDate(String text) {
         try {
             return LocalDate.parse(text).atStartOfDay();
         } catch (DateTimeParseException ignored) {
-            try {
-                return LocalDateTime.parse(text.replace(' ', 'T'));
-            } catch (DateTimeParseException alsoIgnored) {
-                return null;
-            }
+            // Fall through to the formats below.
+        }
+        String normalized = text.replace(' ', 'T');
+        try {
+            return LocalDateTime.parse(normalized);
+        } catch (DateTimeParseException ignored) {
+            // Fall through to the zoned formats below.
+        }
+        try {
+            return LocalDateTime.ofInstant(Instant.parse(normalized), ZoneOffset.UTC);
+        } catch (DateTimeParseException ignored) {
+            // Fall through to the offset formats below.
+        }
+        try {
+            return LocalDateTime.ofInstant(OffsetDateTime.parse(normalized).toInstant(), ZoneOffset.UTC);
+        } catch (DateTimeParseException ignored) {
+            // Fall through to the zoned formats below.
+        }
+        try {
+            return LocalDateTime.ofInstant(ZonedDateTime.parse(normalized).toInstant(), ZoneOffset.UTC);
+        } catch (DateTimeParseException ignored) {
+            // Fall through to the slash-separated date below.
+        }
+        // Year-first slash dates are unambiguous and common in text imports.
+        try {
+            return LocalDate.parse(text, SLASH_DAY).atStartOfDay();
+        } catch (DateTimeParseException ignored) {
+            return null;
         }
     }
 
